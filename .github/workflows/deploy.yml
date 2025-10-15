@@ -1,0 +1,43 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Deploy to EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_KEY }}
+          HOST: ${{ secrets.EC2_IP }}
+          USER: ${{ secrets.EC2_USER }}
+        run: |
+          # Save private key to file
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Create deployment directory if it doesn't exist
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} '
+            mkdir -p /var/www/my-webapp
+          '
+          
+          # Copy files to EC2
+          scp -o StrictHostKeyChecking=no -i private_key.pem -r ./* ${USER}@${HOST}:/var/www/my-webapp/
+          
+          # Restart nginx
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} '
+            sudo systemctl reload nginx
+          '
+          
+          # Clean up
+          rm -f private_key.pem
+      
+      - name: Deployment Success
+        run: echo "🚀 Deployment completed successfully!"
